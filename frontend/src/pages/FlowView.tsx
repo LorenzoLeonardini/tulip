@@ -351,7 +351,7 @@ function FlowOverview({ flow }: { flow: FullFlow }) {
           <div className="font-bold">[{flow.tags.join(", ")}]</div>
           <div>Flags: </div>
           <div className="font-bold">
-            [{flow.flags.map((query, i) => (
+            [{flow.flags?.map((query, i) => (
             <span>
               {i > 0 ? ', ' : ''}
               <button className="font-bold"
@@ -368,7 +368,7 @@ function FlowOverview({ flow }: { flow: FullFlow }) {
           </div>
           <div>Flagids: </div>
           <div className="font-bold">
-            [{flow.flagids.map((query, i) => (
+            [{flow.flagids?.map((query, i) => (
               <span>
                 {i > 0 ? ', ' : ''}
                 <button className="font-bold"
