@@ -329,6 +329,44 @@ func connectToPCAPOverIP(service AssemblerService, pcapIP string) {
 	}
 }
 
+func (service AssemblerService) recursiveHandleExistingFiles(directory string) {
+	log.Println("Handling already existing files in ", directory)
+	files, err := ioutil.ReadDir(directory)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			service.recursiveHandleExistingFiles(filepath.Join(directory, file.Name()))
+			continue
+		}
+		// accepts files with prefixes that start with .pcap (.pcapng .pcap1 etc)
+		if strings.HasPrefix(filepath.Ext(file.Name()), ".pcap") {
+			service.HandlePcapUri(filepath.Join(directory, file.Name())) //FIXME; this is a little clunky
+		}
+	}
+}
+
+func (service AssemblerService) recursiveWatchDir(watcher *fsnotify.Watcher, directory string) {
+	log.Println("Watching inode events for ", directory)
+	err := watcher.Add(directory)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	files, err := ioutil.ReadDir(directory)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			service.recursiveWatchDir(watcher, filepath.Join(directory, file.Name()))
+		}
+	}
+}
+
 func (service AssemblerService) WatchDir(watch_dir string) {
 	stat, err := os.Stat(watch_dir)
 	if err != nil {
@@ -341,17 +379,7 @@ func (service AssemblerService) WatchDir(watch_dir string) {
 
 	log.Println("Monitoring dir: ", watch_dir)
 
-	files, err := ioutil.ReadDir(watch_dir)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for _, file := range files {
-		// accepts files with prefixes that start with .pcap (.pcapng .pcap1 etc)
-		if strings.HasPrefix(filepath.Ext(file.Name()), ".pcap") {
-			service.HandlePcapUri(filepath.Join(watch_dir, file.Name())) //FIXME; this is a little clunky
-		}
-	}
+	service.recursiveHandleExistingFiles(watch_dir)
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -376,6 +404,21 @@ func (service AssemblerService) WatchDir(watch_dir string) {
 						log.Println("Found new file", event.Name, event.Op.String())
 						time.Sleep(2 * time.Second) // FIXME; bit of race here between file creation and writes.
 						service.HandlePcapUri(event.Name)
+					} else {
+						// test if the file is a directory
+						stat, err := os.Stat(event.Name)
+						if err != nil {
+							log.Fatal("Failed to open the watch_dir with error: ", err)
+						} else if stat.IsDir() {
+							if event.Op&fsnotify.Rename != 0 {
+								watcher.Remove(event.Name)
+								log.Println("Removed watch for ", event.Name)
+							} else if event.Op&fsnotify.Create != 0 {
+								watcher.Add(event.Name)
+								log.Println("Added watch for ", event.Name)
+								service.recursiveHandleExistingFiles(event.Name)
+							}
+						}
 					}
 				}
 			case err, ok := <-watcher.Errors:
@@ -387,10 +430,7 @@ func (service AssemblerService) WatchDir(watch_dir string) {
 		}
 	}()
 
-	err = watcher.Add(watch_dir)
-	if err != nil {
-		log.Fatal(err)
-	}
+	service.recursiveWatchDir(watcher, watch_dir)
 	<-signalChan
 	log.Println("Watcher stopped")
 
