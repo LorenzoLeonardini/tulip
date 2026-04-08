@@ -37,7 +37,7 @@ services = [{"ip": vm_ip, "port": 18080, "name": "BIOMarkt"},
 
 You can also edit this during the CTF, just rebuild the `api` service:
 ```
-docker-compose up --build -d api
+docker compose up --build -d api
 ```
 
 ## Usage
@@ -46,7 +46,7 @@ The stack can be started with docker-compose, after creating an `.env` file. See
 ```
 cp .env.example .env
 # < Edit the .env file with your favourite text editor >
-docker-compose up -d --build
+docker compose up -d --build
 ```
 To ingest traffic, it is recommended to create a shared bind mount with the docker-compose. One convenient way to set this up is as follows:
 1. On the vulnbox, start a rotating packet sniffer (e.g. tcpdump, suricata, ...)
